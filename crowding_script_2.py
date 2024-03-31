@@ -4,92 +4,95 @@ import json
 from datetime import datetime, timedelta
 import time
 import psycopg2
-from config import db_params, hdr
+from config import db_params, hdr, email_password, smtp_server, smtp_port, smtp_email, recipient_email
+from email_informant import EmailInformant
+
+# script must find the newest table and assign it is the value if exists
+CURRENT_CROWDING_DATA_TABLE = None
 
 
-# Function to dynamically create the table based on the number of naptan_id columns
-def create_crowding_table(cursor, naptan_ids):
+def create_crowding_table(cursor, naptan_ids, timestamp, email_informant):
+    global CURRENT_CROWDING_DATA_TABLE
     try:
-        print("table")
-        column_definitions = ', '.join([f'"{naptan_id}" VARCHAR' for naptan_id in naptan_ids])
-        print(column_definitions)
+        print(1)
+        create_new_table = False
+        if CURRENT_CROWDING_DATA_TABLE is not None:
+            print(2)
+            cursor.execute(f"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = '{CURRENT_CROWDING_DATA_TABLE}')")
+            table_exists = cursor.fetchone()[0]
+            if table_exists:
+                print(3)
+                query = f"SELECT COUNT(*) FROM {CURRENT_CROWDING_DATA_TABLE};"
+                cursor.execute(query)
+                row_count = cursor.fetchone()[0]
 
-        # Check if the table exists
-        cursor.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'crowding_data')")
-        table_exists = cursor.fetchone()[0]
-        if table_exists:
-            print("Table already exists.")
-            return False  # Return False if the table already exists
+                diff_naptanIds = False
+                cursor.execute(
+                    f"SELECT column_name FROM information_schema.columns WHERE table_name = '{CURRENT_CROWDING_DATA_TABLE}' AND column_name != 'c_timestamp';")
+                existing_columns = [column[0] for column in cursor.fetchall()]
+                if existing_columns != naptan_ids:
+                    print(4)
+                    diff_naptanIds = True
 
-        # If the table doesn't exist, create it
-        create_table_query = f"""
-            CREATE TABLE crowding_data (
-                timestamp VARCHAR PRIMARY KEY,
-                {column_definitions}
-            );
-        """
-        cursor.execute(create_table_query)
-        return True  # Return True if the table was created successfully
+                if row_count >= 100 or diff_naptanIds:
+                    print(5)
+                    create_new_table = True
+                else:
+                    create_new_table = False
+            else:
+                create_new_table = True
+        else:
+            create_new_table = True
 
-    except Exception as e:
-        print(f"Error creating table: {e}")
-        return False  # Return False if there was an error creating the table
+        if create_new_table:
+            new_table_name = f"crowding_data_{timestamp.replace('-', '_').replace(':', '_').replace(' ', '_')}"
+
+            column_definitions = ', '.join([f'"{n_id}" NUMERIC(5,4)' for n_id in naptan_ids])
+
+            create_table_query = f"""
+                                    CREATE TABLE {new_table_name} (
+                                        c_timestamp TIMESTAMP PRIMARY KEY,
+                                        {column_definitions}
+                                    );
+                                  """
+            cursor.execute(create_table_query)
+
+            return new_table_name
+        else:
+            return CURRENT_CROWDING_DATA_TABLE
+    except Exception as error:
+        raise Exception(f"Error creating table: {error}")
 
 
-
-def save_to_postgresql(dumper_state):
+def save_to_postgresql(dumper_state, email_informant):
+    global CURRENT_CROWDING_DATA_TABLE
     try:
         connection = psycopg2.connect(**db_params)
         cursor = connection.cursor()
         for timestamp, data in dumper_state.items():
-            naptan_ids = sorted(list(data.keys()))
+            naptan_ids = list(data.keys())
 
-            create_tab = create_crowding_table(cursor, naptan_ids)
-            if create_tab:
+            table_name = create_crowding_table(cursor, naptan_ids, timestamp, email_informant)
+            if table_name != CURRENT_CROWDING_DATA_TABLE:
                 connection.commit()
-            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'crowding_data' AND column_name != 'timestamp';")
-            existing_columns = [column[0] for column in cursor.fetchall()]
-            if existing_columns != naptan_ids:
-                raise ValueError("The order of naptan_ids does not match the existing table columns.")
+                CURRENT_CROWDING_DATA_TABLE = table_name
+                email_informant.send_email("New table", f"The new table names is: {CURRENT_CROWDING_DATA_TABLE}")
+
+            filtered_naptanIds = [n_id for n_id, value in data.items() if str(value) != 'NaN']
 
             insert_query = f"""
-                            INSERT INTO crowding_data (timestamp, {', '.join([f'"{naptan_id}"' for naptan_id in naptan_ids])})
-                            VALUES (%s, {', '.join([f"%s" if isinstance(data[naptan_id], str) else f"'%s'" for naptan_id in naptan_ids])})
+                            INSERT INTO {CURRENT_CROWDING_DATA_TABLE} (c_timestamp, {', '.join([f'"{n_id}"' for n_id in filtered_naptanIds])})
+                            VALUES (%s, {', '.join(['%s' for _ in filtered_naptanIds])})
                         """
-            cursor.execute(insert_query, [timestamp] + [data[naptan_id] for naptan_id in naptan_ids])
-            print("inserto")
-            connection.commit()  # Commit after inserting the data
-        print("Data saved to PostgreSQL.")
+            cursor.execute(insert_query, [timestamp] + [data[n_id] for n_id in filtered_naptanIds])
 
+            connection.commit()
     except Exception as error:
-        print(f"Error saving data to PostgreSQL: {error}")
+        raise Exception(error)
     finally:
         cursor.close()
         connection.close()
-'''
-def save_to_postgresql(dumper_state):
-    try:
-        connection = psycopg2.connect(**db_params)
-        cursor = connection.cursor()
 
-        for timestamp, data in dumper_state.items():
-            for naptan_id, crowding in data.items():
-                query = """
-                        INSERT INTO crowding_data (timestamp, naptan_id, crowding)
-                        VALUES (%s, %s, %s)
-                        """
-                cursor.execute(query, (timestamp, naptan_id, crowding))
-
-        connection.commit()
-        print("Data saved to PostgreSQL.")
-
-    except Exception as error:
-        print(f"Error saving data to PostgreSQL: {error}")
-
-    finally:
-        cursor.close()
-        connection.close()
-'''
 
 def get_lines():
     """
@@ -115,7 +118,6 @@ def get_lines():
     lines = []
 
     for line in json_lines:
-        print(line.keys())
         id = line.get("id", "NaN")
         name = line.get("name", "NaN")
         modeName = line.get("modeName", "NaN")
@@ -228,20 +230,25 @@ def save_wifi_stations(df):
 
 dumper = {}
 
-save_interval = timedelta(minutes=6)  # Change this to your desired save interval
+save_interval = timedelta(minutes=30)
 
 last_save_time = datetime.now()
 
 try:
+    email_informant = EmailInformant(smtp_server, smtp_port, smtp_email, email_password, recipient_email)
     while True:
         current_datetime = datetime.now()
-        date_str = current_datetime.strftime('%Y_%m_%d')
-        time_str = current_datetime.strftime('%H_%M')  # Adjust this format as needed
-        time_str = f'{date_str}_{time_str}'
-        print(f"Data recording for: {time_str}")
-        dumper[time_str] = {}
+        date_str = current_datetime.strftime('%Y-%m-%d')
+        time_str = current_datetime.strftime('%H:%M:%S')
+        timestamp_str = f'{date_str} {time_str}'
 
-        stations = sorted(save_wifi_stations(get_all_lines_stations(get_lines())))
+        print(f"Data recording for: {timestamp_str}")
+
+        dumper[timestamp_str] = {}
+
+        tube_lines = get_lines()
+        all_stations = get_all_lines_stations(tube_lines)
+        stations = sorted(save_wifi_stations(all_stations))
 
         station_number = len(stations)
         counter = 0
@@ -265,17 +272,21 @@ try:
                         crowding = "NaN"
                 counter += 1
                 print(f"{naptan_id} showed its data ({crowding}). [{counter}/{station_number}]")
-                dumper[time_str][naptan_id] = crowding
+                dumper[timestamp_str][naptan_id] = crowding
 
             except Exception as e:
                 print(f"Error: {e}")
 
-            time.sleep(0.15)
+            time.sleep(0.05)
+        time.sleep(90)
 
-        # Save and reset the dumper based on the save interval
         current_time = datetime.now()
         if current_time - last_save_time >= save_interval:
-            save_to_postgresql(dumper)
+            try:
+                save_to_postgresql(dumper, email_informant)
+            except Exception as error:
+                email_informant.send_email("Something went wrong", str(error))
+
             dumper, last_save_time = {}, current_time
 
 except KeyboardInterrupt:
