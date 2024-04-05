@@ -134,6 +134,10 @@ def save_wifi_stations(df):
             wifi_stations.append(row['naptanId'])
 
     unique_wifi_stations = list(set(wifi_stations))
+
+    if len(unique_wifi_stations) == 0:
+        raise Exception('No stations.')
+
     return unique_wifi_stations
 
 

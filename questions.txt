@@ -1,0 +1,5 @@
+# can be strange when dumper has enough data to full several tables
+# cursor in finally is asked but not created previously
+# another problem is calling saving when there is no naptanIds at all
+# really need to think about where to place db connection and email set up
+# what to do when code breaks with dumper half full
