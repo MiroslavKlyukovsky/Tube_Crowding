@@ -3,7 +3,7 @@ import time
 import psycopg2
 from config import email_password, smtp_server, smtp_port, smtp_email, recipient_email, db_params
 from email_informant import EmailInformant
-from tube_functions import get_lines, get_all_lines_stations, save_wifi_stations, get_crowding_data
+from tube_functions import get_lines, get_all_stations, get_crowding_data
 from db_functions import set_up_table, insert_row_in_table
 
 
@@ -39,12 +39,13 @@ def main():
             dumper[timestamp_str] = {}
 
             tube_lines = get_lines()
-            all_stations = get_all_lines_stations(tube_lines)
-            naptan_ids = save_wifi_stations(all_stations)
+            naptan_ids = get_all_stations(tube_lines)
 
-            for naptan_id, crowding in get_crowding_data(naptan_ids, pause_between_stations):
+            for naptan_id in naptan_ids:
+                crowding = get_crowding_data(naptan_id)
                 print(naptan_id, crowding)
                 dumper[timestamp_str][naptan_id] = crowding
+                time.sleep(pause_between_stations)
 
             time.sleep(pause_between_state_draws)
             print(" -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- ")
@@ -70,6 +71,7 @@ def main():
                 dumper, last_save_time = {}, current_time
 
         except Exception as error:
+            print(error)
             email_informant.send_email("At server: ", str(error))
             time.sleep(65)
         finally:
