@@ -56,7 +56,7 @@ class DatabaseHandler:
 
     def insert_row_in_table(self, timestamp, data):
         try:
-            filtered_naptanids = [n_id for n_id, value in data.items() if str(value) != None]
+            filtered_naptanids = [n_id for n_id, value in data.items() if str(value) is not None]
 
             insert_query = f"""
             INSERT INTO {self.current_crowding_data_table} (c_timestamp, {', '.join([f'"{n_id}"' for n_id in filtered_naptanids])})
