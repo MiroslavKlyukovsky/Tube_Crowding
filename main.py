@@ -8,12 +8,12 @@ from DataDumper import DataDumper
 
 
 def main():
-    pause_between_stations = 0.005
-    pause_between_state_draws = 0
-    dumper = DataDumper(save_interval_min=5)
+    pause_between_stations = 0.008
+    pause_between_state_draws = 15
+    dumper = DataDumper(save_interval_min=15)
 
-    max_rows_in_commit = 2
-    max_rows_in_table = 3
+    max_rows_in_commit = 5
+    max_rows_in_table = 25
     current_crowding_data_table = None
     database_handler = DatabaseHandler(max_rows_in_commit, current_crowding_data_table, max_rows_in_table, db_params)
 
@@ -37,10 +37,10 @@ def main():
 
             time.sleep(pause_between_state_draws)
 
-            print(" -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- ")
+            print("  -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-  ")
 
             if dumper.is_time_to_save():
-                print("==============================================================================")
+                print("  =================================== FLASH ========================================  ")
                 database_handler.insert_dumper(dumper.get_dumper())
                 dumper.set_save_time(datetime.now())
                 dumper.clear_data()

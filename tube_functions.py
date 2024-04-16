@@ -188,7 +188,7 @@ def get_crowding_data(naptan_id):
 
         json_data = json.load(response)
         if json_data['dataAvailable']:
-            crowding = round(json_data['percentageOfBaseline'], 4)
+            crowding = float(round(json_data['percentageOfBaseline'], 4))
 
         return crowding
     except Exception as err:

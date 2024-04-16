@@ -49,7 +49,7 @@ class DataDumper:
         """
         try:
             if crowding_data is not None and not isinstance(crowding_data, float) and crowding_data != 0:
-                raise ValueError("Crowding data wrong type.")
+                raise ValueError("Wrong crowding data.")
             self._dumper[-1][1][station_name] = crowding_data
         except Exception as err:
             raise Exception(f"[add_station_to_row] {err}")
