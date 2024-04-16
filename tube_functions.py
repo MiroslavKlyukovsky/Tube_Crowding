@@ -156,6 +156,9 @@ def get_all_stations(lines_df):
 
         naptan_ids_tuple = tuple(all_lines_df['naptanId'])
 
+        if len(naptan_ids_tuple) == 0:
+            raise Exception('No stations.')
+
         return naptan_ids_tuple
     except Exception as err:
         raise Exception(f"[get_all_stations] {err}")

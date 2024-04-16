@@ -8,13 +8,19 @@ from DataDumper import DataDumper
 
 
 def main():
-    pause_between_stations = 0.1
+    pause_between_stations = 0.005
     pause_between_state_draws = 0
-    error_limit = 5
+    dumper = DataDumper(save_interval_min=5)
 
-    dumper = DataDumper(save_interval_min=3.5)
+    max_rows_in_commit = 2
+    max_rows_in_table = 3
+    current_crowding_data_table = None
+    database_handler = DatabaseHandler(max_rows_in_commit, current_crowding_data_table, max_rows_in_table, db_params)
+
     email_informant = EmailInformant(smtp_server, smtp_port, smtp_email, email_password, recipient_email)
-    database_handler = DatabaseHandler(current_crowding_data_table=None, max_rows=2, db_params=db_params)
+
+    server_error_limit = 3
+
     dumper.set_save_time(datetime.now())
 
     while True:
@@ -34,8 +40,8 @@ def main():
             print(" -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- ")
 
             if dumper.is_time_to_save():
-                print("FFFFFFFFFFFFFFFFLLLLLLLLLLLLLLLLLLLLLLAAAAAAAAAAAAAAAAAAAAASSSSSSSSSSSSSSSSHHHHHHHHHHHHHHH")
-                database_handler.insert_rows_in_table(dumper=dumper.dumper)
+                print("==============================================================================")
+                database_handler.insert_dumper(dumper.get_dumper())
                 dumper.set_save_time(datetime.now())
                 dumper.clear_data()
 
@@ -44,8 +50,8 @@ def main():
             print(error)
             email_informant.send_email("At server: ", str(error))
             time.sleep(65)
-            error_limit -= 1
-            if error_limit == 0:
+            server_error_limit -= 1
+            if server_error_limit == 0:
                 break
 
     email_informant.send_email("At server: ", "Program stopped because error limit reached.")
