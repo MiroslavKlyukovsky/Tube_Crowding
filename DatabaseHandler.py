@@ -1,5 +1,5 @@
 import psycopg2
-
+from utils import timestamp_format
 
 class DatabaseHandler:
     """
@@ -102,7 +102,7 @@ class DatabaseHandler:
             """
             for timestamp, data in self.planned_to_insert:
                 insert_row_values = ['%s' if data[n_id] is not None else 'NULL' for n_id in self.stations_sequence]
-                insert_row_expr = f"""\t('{timestamp}', {', '.join(insert_row_values)})"""
+                insert_row_expr = f"""\t(TO_TIMESTAMP('{timestamp}','{timestamp_format}'), {', '.join(insert_row_values)})"""
                 begin_insert_expr += insert_row_expr + ',\n'
                 values_list.extend([data[n_id] for n_id in self.stations_sequence if data[n_id] is not None])
             insert_query = begin_insert_expr[:-2]

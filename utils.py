@@ -1,5 +1,7 @@
 from datetime import datetime
 
+timestamp_format = 'YYYY-MM-DD HH24:MI:SS'
+
 
 def generate_timestamp():
     """
