@@ -1,6 +1,7 @@
 import psycopg2
 from utils import timestamp_format
 
+
 class DatabaseHandler:
     """
         A class to handle database operations for crowding data.
