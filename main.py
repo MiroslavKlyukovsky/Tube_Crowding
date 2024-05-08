@@ -11,7 +11,7 @@ import argparse
 def main(pause_between_stations_sec=0.005, pause_between_state_draws_sec=45, save_interval_min=15, max_rows_in_commit=10,
          max_rows_in_table=4000, current_crowding_data_table=None, server_error_limit=5, error_del_time_min=180,
          sleep_af_err_sec=65):
-    
+
     dumper = DataDumper(save_interval_min)
 
     database_handler = DatabaseHandler(max_rows_in_commit, current_crowding_data_table, max_rows_in_table, db_params)
@@ -46,6 +46,7 @@ def main(pause_between_stations_sec=0.005, pause_between_state_draws_sec=45, sav
                 email_informant.send_email("At server: ",
                                            f"Server error counter was set to 0 from {server_error_counter}.")
                 server_error_counter = 0
+                last_time_error_oc = None
 
         except Exception as error:
             dumper.drop_last_row()

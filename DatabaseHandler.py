@@ -39,6 +39,24 @@ class DatabaseHandler:
         self.max_rows_in_commit = max_rows_in_commit
         self.planned_to_insert = []
 
+        if self.current_crowding_data_table:
+            self.connect()
+
+            row_num_que = f"SELECT COUNT(*) FROM {self.current_crowding_data_table}"
+            self.cursor.execute(row_num_que)
+            row_count = self.cursor.fetchone()[0]
+            self.rows_left = self.max_rows - row_count
+
+            stations_seq_que = (f"SELECT column_name FROM information_schema.columns " +
+                                f"WHERE table_name = '{current_crowding_data_table}' AND column_name != 'c_timestamp'" +
+                                f" ORDER BY column_name;")
+            self.cursor.execute(stations_seq_que)
+            existing_columns = [column[0] for column in self.cursor.fetchall()]
+            existing_columns = tuple(sorted(existing_columns))
+            self.stations_sequence = existing_columns
+
+            self.disconnect()
+
     def connect(self):
         """Establishes a connection to the database."""
         try:
